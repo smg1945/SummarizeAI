@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { fetchTranscript } from './transcript'
 import { SummaryTab } from './components/SummaryTab'
+import { ChaptersTab } from './components/ChaptersTab'
 import type { RuntimeRequest, RuntimeResponse } from '../shared/messages'
 import type { TranscriptSegment, VideoMeta } from '../shared/types'
 
@@ -79,7 +80,7 @@ function TabContent({ tab, transcript, meta }: { tab: TabKey } & TabProps) {
     case 'summary':
       return <SummaryTab transcript={transcript} meta={meta} />
     case 'chapters':
-      return <span className="muted">챕터 탭 (구현 예정)</span>
+      return <ChaptersTab transcript={transcript} meta={meta} />
     case 'chat':
       return <span className="muted">채팅 탭 (구현 예정)</span>
   }
