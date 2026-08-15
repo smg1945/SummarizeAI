@@ -98,7 +98,19 @@ describe('streamChat (상용 공급자 라우팅)', () => {
     const [url, init] = fetchMock.mock.calls[0] as any
     expect(url).toBe('https://generativelanguage.googleapis.com/v1beta/openai/chat/completions')
     expect(init.headers.Authorization).toBe('Bearer g-key')
-    expect(JSON.parse(init.body).model).toBe('gemini-2.5-flash')
+    const body = JSON.parse(init.body)
+    expect(body.model).toBe('gemini-2.5-flash')
+    // thinking으로 인한 응답 지연을 줄인다
+    expect(body.reasoning_effort).toBe('low')
+  })
+
+  it('gemini가 아닌 공급자에는 reasoning_effort를 보내지 않는다', async () => {
+    const fetchMock = vi.fn(async () => sseResponse('data: [DONE]\n'))
+    vi.stubGlobal('fetch', fetchMock)
+    const settings = withProvider({ provider: 'openai', openai: { apiKey: 'k', model: 'gpt-4o-mini' } })
+    for await (const _ of streamChat(settings, [])) void _
+    const body = JSON.parse((fetchMock.mock.calls[0] as any)[1].body)
+    expect('reasoning_effort' in body).toBe(false)
   })
 
   it('claude는 /v1/messages에 x-api-key로 요청하고 system을 분리한다', async () => {

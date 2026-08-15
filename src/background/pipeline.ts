@@ -8,8 +8,13 @@ import {
 } from './prompts'
 import type { Settings, TranscriptSegment, VideoMeta } from '../shared/types'
 
-export const MAX_SINGLE_PASS_CHARS = 12000
+export const MAX_SINGLE_PASS_CHARS = 12000 // 로컬 소형 모델(컨텍스트 4~8k) 기준
+export const COMMERCIAL_SINGLE_PASS_CHARS = 400_000 // 상용 모델은 컨텍스트가 커서 사실상 항상 단일 호출
 export const CHUNK_CHARS = 8000
+
+export function singlePassLimit(settings: Settings): number {
+  return settings.provider === 'lmstudio' ? MAX_SINGLE_PASS_CHARS : COMMERCIAL_SINGLE_PASS_CHARS
+}
 
 export interface TranscriptChunk {
   text: string
@@ -55,7 +60,7 @@ export async function* summarize(
   const system = buildSummarySystem(settings.language)
   const fullText = transcriptToText(segments)
 
-  if (fullText.length <= MAX_SINGLE_PASS_CHARS) {
+  if (fullText.length <= singlePassLimit(settings)) {
     yield* streamChat(
       settings,
       [
@@ -68,18 +73,23 @@ export async function* summarize(
   }
 
   const chunks = chunkTranscript(segments)
-  const partials: string[] = []
-  for (const chunk of chunks) {
-    partials.push(
-      await completeChat(
-        settings,
-        [
-          { role: 'system', content: system },
-          { role: 'user', content: buildMapUser(chunk.text) },
-        ],
-        signal,
-      ),
+  const mapOne = (chunk: TranscriptChunk) =>
+    completeChat(
+      settings,
+      [
+        { role: 'system', content: system },
+        { role: 'user', content: buildMapUser(chunk.text) },
+      ],
+      signal,
     )
+
+  let partials: string[]
+  if (settings.provider === 'lmstudio') {
+    // 로컬 서버는 요청을 순차 처리하므로 병렬화 이득이 없다
+    partials = []
+    for (const chunk of chunks) partials.push(await mapOne(chunk))
+  } else {
+    partials = await Promise.all(chunks.map(mapOne))
   }
 
   yield* streamChat(

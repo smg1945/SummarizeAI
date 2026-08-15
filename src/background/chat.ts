@@ -1,5 +1,5 @@
 import { streamChat, type LlmMessage } from './llm'
-import { MAX_SINGLE_PASS_CHARS } from './pipeline'
+import { singlePassLimit } from './pipeline'
 import { buildChatSystem, transcriptToText } from './prompts'
 import type { ChatMessage, Settings, TranscriptSegment, VideoMeta } from '../shared/types'
 
@@ -11,7 +11,7 @@ export function buildChatMessages(
   question: string,
   summary?: string,
 ): LlmMessage[] {
-  const context = transcriptToText(segments).slice(0, MAX_SINGLE_PASS_CHARS)
+  const context = transcriptToText(segments).slice(0, singlePassLimit(settings))
   return [
     { role: 'system', content: buildChatSystem(settings.language, meta, context, summary) },
     ...history,

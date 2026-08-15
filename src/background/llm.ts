@@ -24,6 +24,7 @@ const CLAUDE_MAX_TOKENS = 4096
 
 interface Endpoint {
   kind: 'openai' | 'claude'
+  provider: Settings['provider']
   chatUrl: string
   modelsUrl: string
   apiKey?: string
@@ -35,6 +36,7 @@ function resolveEndpoint(settings: Settings): Endpoint {
     case 'lmstudio':
       return {
         kind: 'openai',
+        provider: 'lmstudio',
         chatUrl: `${settings.lmstudio.baseUrl}/v1/chat/completions`,
         modelsUrl: `${settings.lmstudio.baseUrl}/v1/models`,
         model: settings.lmstudio.model,
@@ -42,6 +44,7 @@ function resolveEndpoint(settings: Settings): Endpoint {
     case 'gemini':
       return {
         kind: 'openai',
+        provider: 'gemini',
         chatUrl: 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
         modelsUrl: 'https://generativelanguage.googleapis.com/v1beta/openai/models',
         apiKey: settings.gemini.apiKey,
@@ -50,6 +53,7 @@ function resolveEndpoint(settings: Settings): Endpoint {
     case 'openai':
       return {
         kind: 'openai',
+        provider: 'openai',
         chatUrl: 'https://api.openai.com/v1/chat/completions',
         modelsUrl: 'https://api.openai.com/v1/models',
         apiKey: settings.openai.apiKey,
@@ -58,6 +62,7 @@ function resolveEndpoint(settings: Settings): Endpoint {
     case 'claude':
       return {
         kind: 'claude',
+        provider: 'claude',
         chatUrl: 'https://api.anthropic.com/v1/messages',
         modelsUrl: 'https://api.anthropic.com/v1/models',
         apiKey: settings.claude.apiKey,
@@ -129,6 +134,8 @@ function buildRequestBody(endpoint: Endpoint, messages: LlmMessage[]): Record<st
   }
   const body: Record<string, unknown> = { messages, stream: true }
   if (endpoint.model) body.model = endpoint.model
+  // Gemini는 기본으로 thinking을 켜서 첫 응답이 늦다 — 요약 용도에는 낮춰서 지연을 줄인다
+  if (endpoint.provider === 'gemini') body.reasoning_effort = 'low'
   return body
 }
 

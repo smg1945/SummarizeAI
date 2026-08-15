@@ -35,6 +35,13 @@ describe('buildChatMessages', () => {
     expect(messages[0].content.length).toBeLessThan(MAX_SINGLE_PASS_CHARS * 1.5)
   })
 
+  it('상용 공급자는 로컬 임계값보다 긴 자막도 자르지 않는다', () => {
+    const long: TranscriptSegment[] = [{ start: 0, duration: 5, text: 'x'.repeat(MAX_SINGLE_PASS_CHARS * 2) }]
+    const gemini = { ...DEFAULT_SETTINGS, provider: 'gemini' as const }
+    const messages = buildChatMessages(gemini, long, meta, [], '질문')
+    expect(messages[0].content.length).toBeGreaterThan(MAX_SINGLE_PASS_CHARS * 1.5)
+  })
+
   it('summary가 주어지면 시스템 프롬프트에 영상 요약 섹션을 포함한다', () => {
     const messages = buildChatMessages(DEFAULT_SETTINGS, segs, meta, [], '질문', '캐시된 요약 내용')
     expect(messages[0].content).toContain('영상 요약:')

@@ -49,6 +49,19 @@ describe('summarize', () => {
     expect(completeChat).not.toHaveBeenCalled()
   })
 
+  it('상용 공급자는 로컬 임계값을 넘는 긴 자막도 한 번에 스트리밍한다', async () => {
+    vi.mocked(streamChat).mockImplementation(async function* () {
+      yield '아티클'
+    })
+    const longSegments = Array.from({ length: 30 }, (_, i) =>
+      seg(i * 10, 'x'.repeat(Math.ceil(MAX_SINGLE_PASS_CHARS / 20))),
+    )
+    const gemini = { ...DEFAULT_SETTINGS, provider: 'gemini' as const }
+    const result = await collect(summarize(gemini, longSegments, meta))
+    expect(result).toBe('아티클')
+    expect(completeChat).not.toHaveBeenCalled()
+  })
+
   it('긴 자막은 map(completeChat) 후 reduce(streamChat)한다', async () => {
     vi.mocked(completeChat).mockResolvedValue('부분요약')
     vi.mocked(streamChat).mockImplementation(async function* () {
