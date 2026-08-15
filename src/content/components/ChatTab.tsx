@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Markdown } from '../../components/Markdown'
 import { usePortStream } from '../usePortStream'
 import type { TabProps } from '../Panel'
 import type { ChatMessage } from '../../shared/types'
@@ -26,10 +27,10 @@ export function ChatTab({ transcript, meta }: TabProps) {
       <div className="chat-log">
         {history.map((m, i) => (
           <div key={i} className={`chat-msg ${m.role}`}>
-            {m.content}
+            {m.role === 'assistant' ? <Markdown text={m.content} /> : m.content}
           </div>
         ))}
-        {streaming && <div className="chat-msg assistant">{text || '...'}</div>}
+        {streaming && <div className="chat-msg assistant">{text ? <Markdown text={text} /> : '...'}</div>}
         {status === 'error' && <p className="error">{error}</p>}
       </div>
       <div className="chat-input-row">

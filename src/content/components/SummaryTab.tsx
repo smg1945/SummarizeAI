@@ -1,3 +1,4 @@
+import { Markdown } from '../../components/Markdown'
 import { usePortStream } from '../usePortStream'
 import type { TabProps } from '../Panel'
 
@@ -25,7 +26,7 @@ export function SummaryTab({ transcript, meta }: TabProps) {
   }
   return (
     <div>
-      {text || <span className="muted">요약 생성 중...</span>}
+      {text ? <Markdown text={text} /> : <span className="muted">요약 생성 중...</span>}
       {status === 'streaming' && text && <span className="muted"> ▍</span>}
     </div>
   )

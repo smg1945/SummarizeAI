@@ -17,26 +17,31 @@ export function transcriptToText(segments: TranscriptSegment[]): string {
   return segments.map((s) => s.text).join(' ')
 }
 
+const ARTICLE_RULES = [
+  '당신은 유튜브 영상 내용을 읽기 좋은 아티클로 재구성하는 전문 에디터입니다.',
+  '다음 구조로 상세한 아티클을 작성하세요:',
+  '- 첫 문단: 영상 전체의 핵심 주제와 결론을 2~3문장으로 소개',
+  '- 이어서 내용 흐름에 따라 3~6개의 섹션으로 나누고, 각 섹션은 "## 소제목"으로 시작',
+  '- 각 섹션에서 해당 주제의 논지, 근거, 구체적인 예시를 2~5문장으로 충분히 설명',
+  '- 나열이 자연스러운 곳에는 불릿 목록 사용, 핵심 용어나 문장은 **볼드**로 강조',
+  '금지: "다음은 요약입니다", "제공된 내용을 바탕으로", "이상입니다" 같은 메타 서두·맺음 문구를 절대 쓰지 마세요. 바로 본문으로 시작하고 본문으로 끝내세요.',
+]
+
 export function buildSummarySystem(language: Settings['language']): string {
-  return [
-    '당신은 유튜브 영상 요약 도우미입니다.',
-    '핵심 주장, 근거, 결론을 빠뜨리지 말고 명확하게 요약하세요.',
-    '불릿 목록과 짧은 단락을 섞어 읽기 쉽게 작성하세요.',
-    languageInstruction(language),
-  ].join('\n')
+  return [...ARTICLE_RULES, languageInstruction(language)].join('\n')
 }
 
 export function buildSummaryUser(meta: VideoMeta, transcriptText: string): string {
-  return `영상 제목: ${meta.title}\n\n다음 자막 전체를 요약해 주세요:\n\n${transcriptText}`
+  return `영상 제목: ${meta.title}\n\n다음 자막 전체를 바탕으로 아티클을 작성해 주세요:\n\n${transcriptText}`
 }
 
 export function buildMapUser(chunkText: string): string {
-  return `다음은 긴 영상 자막의 일부입니다. 이 부분의 핵심 내용을 5문장 이내로 요약하세요:\n\n${chunkText}`
+  return `다음은 긴 영상 자막의 일부입니다. 이 부분의 핵심 내용(주장, 근거, 예시)을 빠뜨리지 말고 상세히 정리하세요. 메타 문구 없이 내용만 쓰세요:\n\n${chunkText}`
 }
 
 export function buildReduceUser(meta: VideoMeta, partials: string[]): string {
   const joined = partials.map((p, i) => `[부분 ${i + 1}]\n${p}`).join('\n\n')
-  return `영상 제목: ${meta.title}\n\n다음은 영상을 구간별로 나눠 요약한 부분 요약들입니다. 이를 통합해 전체 영상의 최종 요약을 작성하세요:\n\n${joined}`
+  return `영상 제목: ${meta.title}\n\n다음은 영상을 구간별로 나눠 정리한 내용입니다. 이를 통합해 하나의 완결된 아티클로 작성하세요:\n\n${joined}`
 }
 
 const CHAPTER_GROUP_MAX_CHARS = 3000
