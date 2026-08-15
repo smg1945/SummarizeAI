@@ -25,7 +25,11 @@ export type PortResponse =
 export type RuntimeRequest =
   | { kind: 'checkConnection' }
   | { kind: 'listModels'; settings: Settings } // 저장 전의 폼 값으로도 조회할 수 있게 설정을 함께 보낸다
+  | { kind: 'suggestQuestions'; transcript: TranscriptSegment[]; meta: VideoMeta; history: ChatMessage[] }
 export type RuntimeResponse = { connected: boolean }
 export interface ListModelsResponse {
   models: string[] | null // null이면 조회 실패
+}
+export interface SuggestQuestionsResponse {
+  questions: string[] | null // null이면 생성 실패
 }

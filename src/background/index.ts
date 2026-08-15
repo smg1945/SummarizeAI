@@ -1,5 +1,6 @@
 import { handleRequest } from './router'
 import { checkConnection, listModels } from './llm'
+import { generateSuggestions } from './suggest'
 import { loadSettings } from '../shared/settings'
 import {
   PORT_NAME,
@@ -7,6 +8,7 @@ import {
   type PortRequest,
   type RuntimeRequest,
   type RuntimeResponse,
+  type SuggestQuestionsResponse,
 } from '../shared/messages'
 
 chrome.runtime.onConnect.addListener((port) => {
@@ -39,7 +41,11 @@ chrome.runtime.onConnect.addListener((port) => {
 })
 
 chrome.runtime.onMessage.addListener(
-  (req: RuntimeRequest, _sender, sendResponse: (res: RuntimeResponse | ListModelsResponse) => void) => {
+  (
+    req: RuntimeRequest,
+    _sender,
+    sendResponse: (res: RuntimeResponse | ListModelsResponse | SuggestQuestionsResponse) => void,
+  ) => {
     if (req.kind === 'checkConnection') {
       void (async () => {
         const settings = await loadSettings()
@@ -50,6 +56,18 @@ chrome.runtime.onMessage.addListener(
     if (req.kind === 'listModels') {
       void (async () => {
         sendResponse({ models: await listModels(req.settings) })
+      })()
+      return true
+    }
+    if (req.kind === 'suggestQuestions') {
+      void (async () => {
+        try {
+          const settings = await loadSettings()
+          const questions = await generateSuggestions(settings, req.transcript, req.meta, req.history)
+          sendResponse({ questions } satisfies SuggestQuestionsResponse)
+        } catch {
+          sendResponse({ questions: null } satisfies SuggestQuestionsResponse)
+        }
       })()
       return true
     }

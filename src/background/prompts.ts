@@ -66,6 +66,39 @@ export function buildChaptersUser(meta: VideoMeta, groups: TranscriptChunk[]): s
   return `영상 제목: ${meta.title}\n\n다음 구간별 자막을 보고 각 구간의 챕터를 만들어 주세요:\n\n${body}`
 }
 
+// 추천 질문 생성에는 전체 자막이 필요 없다 — 주제 파악에 충분한 만큼만 사용
+const SUGGEST_CONTEXT_CHARS = 16000
+const SUGGEST_HISTORY_CHARS = 300
+
+export function buildSuggestSystem(language: Settings['language']): string {
+  return [
+    '당신은 유튜브 영상 시청자가 다음에 궁금해할 만한 질문을 제안하는 도우미입니다.',
+    '반드시 JSON 문자열 배열만 출력하세요. 다른 텍스트를 덧붙이지 마세요.',
+    '형식: ["질문1", "질문2", "질문3"]',
+    '각 질문은 영상 내용에 근거한 짧고 구체적인 한 문장으로 쓰세요.',
+    '이미 대화에서 다룬 질문과 겹치지 않는 새로운 질문을 제안하세요.',
+    languageInstruction(language),
+  ].join('\n')
+}
+
+export function buildSuggestUser(
+  meta: VideoMeta,
+  segments: TranscriptSegment[],
+  history: { role: string; content: string }[],
+): string {
+  const context = transcriptToText(segments).slice(0, SUGGEST_CONTEXT_CHARS)
+  const parts = [`영상 제목: ${meta.title}`, `자막:\n${context}`]
+  if (history.length) {
+    const recent = history
+      .slice(-6)
+      .map((m) => `${m.role === 'user' ? '질문' : '답변'}: ${m.content.slice(0, SUGGEST_HISTORY_CHARS)}`)
+      .join('\n')
+    parts.push(`지금까지의 대화:\n${recent}`)
+  }
+  parts.push('이 영상에 대해 시청자가 물어볼 만한 질문 3개를 제안해 주세요.')
+  return parts.join('\n\n')
+}
+
 export function buildChatSystem(
   language: Settings['language'],
   meta: VideoMeta,

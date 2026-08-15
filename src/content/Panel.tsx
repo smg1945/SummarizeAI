@@ -95,7 +95,7 @@ export function Panel({ videoId }: { videoId: string }) {
                   <ChaptersTab transcript={data.segments} meta={data.meta} />
                 </div>
                 <div style={{ display: tab === 'chat' ? undefined : 'none' }}>
-                  <ChatTab transcript={data.segments} meta={data.meta} />
+                  <ChatTab transcript={data.segments} meta={data.meta} active={tab === 'chat'} />
                 </div>
               </>
             )}
