@@ -60,3 +60,18 @@ export function buildChaptersUser(meta: VideoMeta, groups: TranscriptChunk[]): s
     .join('\n\n')
   return `영상 제목: ${meta.title}\n\n다음 구간별 자막을 보고 각 구간의 챕터를 만들어 주세요:\n\n${body}`
 }
+
+export function buildChatSystem(
+  language: Settings['language'],
+  meta: VideoMeta,
+  transcriptContext: string,
+): string {
+  return [
+    '당신은 유튜브 영상 내용에 대해 답하는 도우미입니다.',
+    '아래 자막에 근거해서만 답하고, 자막에 없는 내용은 모른다고 하세요.',
+    `영상 제목: ${meta.title}`,
+    '자막:',
+    transcriptContext,
+    languageInstruction(language),
+  ].join('\n')
+}
