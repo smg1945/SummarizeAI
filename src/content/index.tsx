@@ -47,6 +47,8 @@ async function mountPanel() {
     if (!host) {
       host = document.createElement('div')
       host.id = HOST_ID
+      // 다크가 기본값 — 유튜브가 라이트 모드(<html>에 dark 속성 없음)일 때만 라이트 팔레트
+      if (!document.documentElement.hasAttribute('dark')) host.classList.add('light')
       secondary.prepend(host)
       const shadow = host.attachShadow({ mode: 'open' })
       const style = document.createElement('style')
