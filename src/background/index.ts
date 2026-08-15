@@ -1,7 +1,13 @@
 import { handleRequest } from './router'
-import { checkConnection } from './llm'
+import { checkConnection, listModels } from './llm'
 import { loadSettings } from '../shared/settings'
-import { PORT_NAME, type PortRequest, type RuntimeRequest, type RuntimeResponse } from '../shared/messages'
+import {
+  PORT_NAME,
+  type ListModelsResponse,
+  type PortRequest,
+  type RuntimeRequest,
+  type RuntimeResponse,
+} from '../shared/messages'
 
 chrome.runtime.onConnect.addListener((port) => {
   if (port.name !== PORT_NAME) return
@@ -33,12 +39,19 @@ chrome.runtime.onConnect.addListener((port) => {
 })
 
 chrome.runtime.onMessage.addListener(
-  (req: RuntimeRequest, _sender, sendResponse: (res: RuntimeResponse) => void) => {
-    if (req.kind !== 'checkConnection') return
-    void (async () => {
-      const settings = await loadSettings()
-      sendResponse({ connected: await checkConnection(settings) })
-    })()
-    return true // 비동기 sendResponse 유지
+  (req: RuntimeRequest, _sender, sendResponse: (res: RuntimeResponse | ListModelsResponse) => void) => {
+    if (req.kind === 'checkConnection') {
+      void (async () => {
+        const settings = await loadSettings()
+        sendResponse({ connected: await checkConnection(settings) })
+      })()
+      return true // 비동기 sendResponse 유지
+    }
+    if (req.kind === 'listModels') {
+      void (async () => {
+        sendResponse({ models: await listModels(req.settings) })
+      })()
+      return true
+    }
   },
 )

@@ -1,5 +1,6 @@
 import { useEffect, useState, type CSSProperties } from 'react'
 import { createRoot } from 'react-dom/client'
+import { ModelSelect } from '../components/ModelSelect'
 import { loadSettings, saveSettings } from '../shared/settings'
 import { DEFAULT_SETTINGS, type Provider, type Settings } from '../shared/types'
 import type { RuntimeRequest, RuntimeResponse } from '../shared/messages'
@@ -78,14 +79,13 @@ function OptionsApp() {
             />
           </div>
           <div style={row}>
-            <label>모델명 (비워두면 LM Studio에 로드된 기본 모델 사용)</label>
-            <input
-              style={input}
+            <label>모델</label>
+            <ModelSelect
+              settings={settings}
               value={settings.lmstudio.model}
-              placeholder="예: qwen2.5-7b-instruct"
-              onChange={(e) =>
-                setSettings({ ...settings, lmstudio: { ...settings.lmstudio, model: e.target.value } })
-              }
+              emptyLabel="(로드된 기본 모델 사용)"
+              style={input}
+              onChange={(model) => setSettings({ ...settings, lmstudio: { ...settings.lmstudio, model } })}
             />
           </div>
         </>
@@ -105,13 +105,12 @@ function OptionsApp() {
             <span style={note}>키는 이 브라우저의 확장 저장소에 평문으로 저장됩니다 (개인 사용 기준).</span>
           </div>
           <div style={row}>
-            <label>모델명</label>
-            <input
-              style={input}
+            <label>모델</label>
+            <ModelSelect
+              settings={settings}
               value={settings[p].model}
-              onChange={(e) =>
-                setSettings({ ...settings, [p]: { ...settings[p], model: e.target.value } })
-              }
+              style={input}
+              onChange={(model) => setSettings({ ...settings, [p]: { ...settings[p], model } })}
             />
           </div>
         </>

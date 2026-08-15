@@ -1,4 +1,4 @@
-import type { Chapter, ChatMessage, TranscriptSegment, VideoMeta } from './types'
+import type { Chapter, ChatMessage, Settings, TranscriptSegment, VideoMeta } from './types'
 
 export const PORT_NAME = 'summarize-ai'
 
@@ -22,5 +22,10 @@ export type PortResponse =
   | { kind: 'error'; code: PortErrorCode; message: string }
 
 /** 원샷 메시지 (chrome.runtime.sendMessage) */
-export type RuntimeRequest = { kind: 'checkConnection' }
+export type RuntimeRequest =
+  | { kind: 'checkConnection' }
+  | { kind: 'listModels'; settings: Settings } // 저장 전의 폼 값으로도 조회할 수 있게 설정을 함께 보낸다
 export type RuntimeResponse = { connected: boolean }
+export interface ListModelsResponse {
+  models: string[] | null // null이면 조회 실패
+}

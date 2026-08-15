@@ -3,7 +3,9 @@ import {
   LlmAuthError,
   LlmUnreachableError,
   completeChat,
+  listModels,
   parseClaudeSseLine,
+  parseModelList,
   parseSseLine,
   streamChat,
 } from './llm'
@@ -127,6 +129,49 @@ describe('streamChat (상용 공급자 라우팅)', () => {
     await expect(async () => {
       for await (const _ of streamChat(settings, [])) void _
     }).rejects.toThrow(LlmAuthError)
+  })
+})
+
+describe('parseModelList', () => {
+  it('OpenAI 형식 data[].id를 추출하고 비챗 모델을 걸러낸다', () => {
+    const data = {
+      data: [
+        { id: 'gpt-4o-mini' },
+        { id: 'text-embedding-3-small' },
+        { id: 'whisper-1' },
+        { id: 'dall-e-3' },
+        { id: 'gpt-4o-mini-tts' },
+      ],
+    }
+    expect(parseModelList('openai', data)).toEqual(['gpt-4o-mini'])
+  })
+
+  it('gemini는 models/ 접두사를 제거하고 gemini 모델만 남긴다', () => {
+    const data = { data: [{ id: 'models/gemini-2.5-flash' }, { id: 'models/embedding-001' }] }
+    expect(parseModelList('gemini', data)).toEqual(['gemini-2.5-flash'])
+  })
+
+  it('claude와 lmstudio는 id를 그대로 반환한다', () => {
+    const data = { data: [{ id: 'claude-haiku-4-5' }, { id: 'claude-opus-5' }] }
+    expect(parseModelList('claude', data)).toEqual(['claude-haiku-4-5', 'claude-opus-5'])
+    expect(parseModelList('lmstudio', { data: [{ id: 'qwen2.5-7b' }] })).toEqual(['qwen2.5-7b'])
+  })
+})
+
+describe('listModels', () => {
+  it('모델 목록 엔드포인트를 인증 헤더와 함께 호출한다', async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ data: [{ id: 'claude-haiku-4-5' }] }), { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+    const settings = withProvider({ provider: 'claude', claude: { apiKey: 'sk-ant', model: '' } })
+    expect(await listModels(settings)).toEqual(['claude-haiku-4-5'])
+    const [url, init] = fetchMock.mock.calls[0] as any
+    expect(url).toBe('https://api.anthropic.com/v1/models')
+    expect(init.headers['x-api-key']).toBe('sk-ant')
+  })
+
+  it('실패하면 null을 반환한다', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('nope', { status: 401 })))
+    expect(await listModels(DEFAULT_SETTINGS)).toBeNull()
   })
 })
 

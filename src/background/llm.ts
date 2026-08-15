@@ -192,3 +192,43 @@ export async function checkConnection(settings: Settings): Promise<boolean> {
     return false
   }
 }
+
+// OpenAI 모델 목록에는 채팅용이 아닌 모델이 많이 섞여 있어 걸러낸다
+const OPENAI_NON_CHAT = [
+  'embedding',
+  'whisper',
+  'tts',
+  'dall-e',
+  'audio',
+  'realtime',
+  'moderation',
+  'image',
+  'transcribe',
+  'babbage',
+  'davinci',
+]
+
+export function parseModelList(provider: Settings['provider'], data: unknown): string[] {
+  const ids = ((data as { data?: { id?: string }[] })?.data ?? [])
+    .map((m) => m.id ?? '')
+    .filter(Boolean)
+  switch (provider) {
+    case 'gemini':
+      return ids.map((id) => id.replace(/^models\//, '')).filter((id) => id.includes('gemini'))
+    case 'openai':
+      return ids.filter((id) => !OPENAI_NON_CHAT.some((x) => id.includes(x)))
+    default:
+      return ids
+  }
+}
+
+export async function listModels(settings: Settings): Promise<string[] | null> {
+  const endpoint = resolveEndpoint(settings)
+  try {
+    const res = await fetch(endpoint.modelsUrl, { headers: authHeaders(endpoint) })
+    if (!res.ok) return null
+    return parseModelList(settings.provider, await res.json())
+  } catch {
+    return null
+  }
+}

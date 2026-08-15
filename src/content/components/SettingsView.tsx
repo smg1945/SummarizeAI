@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { ModelSelect } from '../../components/ModelSelect'
 import { loadSettings, saveSettings } from '../../shared/settings'
 import { DEFAULT_SETTINGS, type Provider, type Settings } from '../../shared/types'
 import type { RuntimeRequest, RuntimeResponse } from '../../shared/messages'
@@ -67,14 +68,14 @@ export function SettingsView({ onSaved }: { onSaved: () => void }) {
             />
           </div>
           <div className="settings-row">
-            <label>모델명 (비우면 로드된 기본 모델)</label>
-            <input
-              className="settings-input"
+            <label>모델</label>
+            <ModelSelect
+              settings={settings}
               value={settings.lmstudio.model}
-              placeholder="예: qwen2.5-7b-instruct"
-              onChange={(e) =>
-                setSettings({ ...settings, lmstudio: { ...settings.lmstudio, model: e.target.value } })
-              }
+              emptyLabel="(로드된 기본 모델 사용)"
+              className="settings-input"
+              buttonClassName="icon-btn"
+              onChange={(model) => setSettings({ ...settings, lmstudio: { ...settings.lmstudio, model } })}
             />
           </div>
         </>
@@ -91,11 +92,13 @@ export function SettingsView({ onSaved }: { onSaved: () => void }) {
             />
           </div>
           <div className="settings-row">
-            <label>모델명</label>
-            <input
-              className="settings-input"
+            <label>모델</label>
+            <ModelSelect
+              settings={settings}
               value={settings[p].model}
-              onChange={(e) => setSettings({ ...settings, [p]: { ...settings[p], model: e.target.value } })}
+              className="settings-input"
+              buttonClassName="icon-btn"
+              onChange={(model) => setSettings({ ...settings, [p]: { ...settings[p], model } })}
             />
           </div>
         </>
