@@ -1,4 +1,4 @@
-import type { Settings, VideoMeta } from '../shared/types'
+import type { Settings, TranscriptSegment, VideoMeta } from '../shared/types'
 
 export function languageInstruction(language: Settings['language']): string {
   switch (language) {
@@ -11,7 +11,7 @@ export function languageInstruction(language: Settings['language']): string {
   }
 }
 
-export function transcriptToText(segments: { text: string }[]): string {
+export function transcriptToText(segments: TranscriptSegment[]): string {
   return segments.map((s) => s.text).join(' ')
 }
 
