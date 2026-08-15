@@ -33,6 +33,9 @@ async function mountPanel() {
   }
   let host = document.getElementById(HOST_ID)
   if (!host) {
+    // 이전 호스트가 DOM에서 제거된 경우 남은 React 트리를 정리한다
+    root?.unmount()
+    root = null
     const secondary = await waitFor('#secondary', 10000)
     if (!secondary) {
       console.warn('[SummarizeAI] 패널 삽입 지점(#secondary)을 찾지 못했습니다')
