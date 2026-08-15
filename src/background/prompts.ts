@@ -65,11 +65,13 @@ export function buildChatSystem(
   language: Settings['language'],
   meta: VideoMeta,
   transcriptContext: string,
+  summary?: string,
 ): string {
   return [
     '당신은 유튜브 영상 내용에 대해 답하는 도우미입니다.',
     '아래 자막에 근거해서만 답하고, 자막에 없는 내용은 모른다고 하세요.',
     `영상 제목: ${meta.title}`,
+    ...(summary ? [`영상 요약:\n${summary}`] : []),
     '자막:',
     transcriptContext,
     languageInstruction(language),

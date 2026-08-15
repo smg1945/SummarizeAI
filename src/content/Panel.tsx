@@ -68,21 +68,19 @@ export function Panel({ videoId }: { videoId: string }) {
         ) : !data ? (
           <span className="muted">이 영상은 자막이 없어 요약할 수 없습니다.</span>
         ) : (
-          <TabContent tab={tab} transcript={data.segments} meta={data.meta} />
+          <>
+            <div style={{ display: tab === 'summary' ? undefined : 'none' }}>
+              <SummaryTab transcript={data.segments} meta={data.meta} />
+            </div>
+            <div style={{ display: tab === 'chapters' ? undefined : 'none' }}>
+              <ChaptersTab transcript={data.segments} meta={data.meta} />
+            </div>
+            <div style={{ display: tab === 'chat' ? undefined : 'none' }}>
+              <ChatTab transcript={data.segments} meta={data.meta} />
+            </div>
+          </>
         )}
       </div>
     </div>
   )
-}
-
-function TabContent({ tab, transcript, meta }: { tab: TabKey } & TabProps) {
-  // Task 10~12에서 SummaryTab / ChaptersTab / ChatTab으로 교체된다
-  switch (tab) {
-    case 'summary':
-      return <SummaryTab transcript={transcript} meta={meta} />
-    case 'chapters':
-      return <ChaptersTab transcript={transcript} meta={meta} />
-    case 'chat':
-      return <ChatTab transcript={transcript} meta={meta} />
-  }
 }

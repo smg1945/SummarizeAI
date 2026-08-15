@@ -16,6 +16,7 @@ vi.mock('./cache', () => ({ getCache: vi.fn(), setCache: vi.fn() }))
 import { LlmUnreachableError } from './llm'
 import { summarize } from './pipeline'
 import { generateChapters } from './chapters'
+import { answerQuestion } from './chat'
 import { getCache, setCache } from './cache'
 import { handleRequest } from './router'
 
@@ -88,5 +89,31 @@ describe('handleRequest: chapters', () => {
     await handleRequest({ kind: 'chapters', transcript, meta }, DEFAULT_SETTINGS, post, new AbortController().signal)
     expect(messages).toEqual([{ kind: 'chapters', chapters }])
     expect(setCache).toHaveBeenCalledWith('chapters:v1:ko', JSON.stringify(chapters))
+  })
+})
+
+describe('handleRequest: chat', () => {
+  it('캐시된 요약이 있으면 answerQuestion에 함께 전달한다', async () => {
+    vi.mocked(getCache).mockResolvedValue('캐시된 요약')
+    vi.mocked(answerQuestion).mockImplementation(async function* () {
+      yield '답'
+    })
+    const { messages, post } = makePost()
+    const chatReq: PortRequest = { kind: 'chat', transcript, meta, history: [], question: '질문' }
+    await handleRequest(chatReq, DEFAULT_SETTINGS, post, new AbortController().signal)
+    expect(messages).toEqual([
+      { kind: 'delta', text: '답' },
+      { kind: 'done', text: '답' },
+    ])
+    expect(getCache).toHaveBeenCalledWith('summary:v1:ko')
+    expect(answerQuestion).toHaveBeenCalledWith(
+      DEFAULT_SETTINGS,
+      transcript,
+      meta,
+      [],
+      '질문',
+      expect.anything(),
+      '캐시된 요약',
+    )
   })
 })

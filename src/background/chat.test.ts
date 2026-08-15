@@ -34,4 +34,10 @@ describe('buildChatMessages', () => {
     const messages = buildChatMessages(DEFAULT_SETTINGS, long, meta, [], '질문')
     expect(messages[0].content.length).toBeLessThan(MAX_SINGLE_PASS_CHARS * 1.5)
   })
+
+  it('summary가 주어지면 시스템 프롬프트에 영상 요약 섹션을 포함한다', () => {
+    const messages = buildChatMessages(DEFAULT_SETTINGS, segs, meta, [], '질문', '캐시된 요약 내용')
+    expect(messages[0].content).toContain('영상 요약:')
+    expect(messages[0].content).toContain('캐시된 요약 내용')
+  })
 })

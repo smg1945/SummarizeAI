@@ -49,6 +49,7 @@ export async function handleRequest(
         return
       }
       case 'chat': {
+        const summary = await getCache(`summary:${req.meta.videoId}:${settings.language}`)
         let full = ''
         for await (const delta of answerQuestion(
           settings,
@@ -57,6 +58,7 @@ export async function handleRequest(
           req.history,
           req.question,
           signal,
+          summary,
         )) {
           full += delta
           post({ kind: 'delta', text: delta })

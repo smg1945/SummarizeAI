@@ -28,23 +28,27 @@ export function usePortStream() {
       setStatus('streaming')
       const port = chrome.runtime.connect({ name: PORT_NAME })
       portRef.current = port
+      let finished = false
       port.onMessage.addListener((msg: PortResponse) => {
         switch (msg.kind) {
           case 'delta':
             setText((t) => t + msg.text)
             break
           case 'done':
+            finished = true
             setText(msg.text)
             setStatus('done')
             onDone?.(msg.text)
             port.disconnect()
             break
           case 'chapters':
+            finished = true
             setChapters(msg.chapters)
             setStatus('done')
             port.disconnect()
             break
           case 'error':
+            finished = true
             setError(
               msg.code === 'LLM_UNREACHABLE'
                 ? 'LM Studio에 연결할 수 없습니다. LM Studio를 실행하고 서버(Developer > Start Server)를 켜 주세요.'
@@ -55,6 +59,18 @@ export function usePortStream() {
             setStatus('error')
             port.disconnect()
             break
+        }
+      })
+      // 백그라운드(서비스 워커) 쪽에서 먼저 연결이 끊긴 경우 — 정상 종료(done/chapters/error) 없이
+      // 끊기면 UI가 'streaming' 상태로 멈추므로 에러로 전환한다.
+      // abort()/cleanup에 의한 로컬 disconnect()는 이 리스너를 트리거하지 않지만,
+      // 언마운트 등으로 portRef가 이미 교체된 경우까지 대비해 현재 포트 여부도 함께 확인한다.
+      port.onDisconnect.addListener(() => {
+        if (!finished && portRef.current === port) {
+          finished = true
+          setError('백그라운드 연결이 끊겼습니다. 다시 시도해 주세요.')
+          setStatus('error')
+          portRef.current = null
         }
       })
       port.postMessage(req)

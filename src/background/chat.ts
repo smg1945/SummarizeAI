@@ -9,10 +9,11 @@ export function buildChatMessages(
   meta: VideoMeta,
   history: ChatMessage[],
   question: string,
+  summary?: string,
 ): LlmMessage[] {
   const context = transcriptToText(segments).slice(0, MAX_SINGLE_PASS_CHARS)
   return [
-    { role: 'system', content: buildChatSystem(settings.language, meta, context) },
+    { role: 'system', content: buildChatSystem(settings.language, meta, context, summary) },
     ...history,
     { role: 'user', content: question },
   ]
@@ -25,6 +26,7 @@ export function answerQuestion(
   history: ChatMessage[],
   question: string,
   signal?: AbortSignal,
+  summary?: string,
 ): AsyncGenerator<string> {
-  return streamChat(settings, buildChatMessages(settings, segments, meta, history, question), signal)
+  return streamChat(settings, buildChatMessages(settings, segments, meta, history, question, summary), signal)
 }
