@@ -55,6 +55,12 @@ async function mountPanel() {
       style.textContent = cssText
       shadow.appendChild(style)
       const container = document.createElement('div')
+      // Shadow DOM 밖으로 버블링되는 키 이벤트는 target이 호스트로 재지정되어,
+      // 유튜브 전역 단축키(스페이스=재생/정지 등)가 입력창 타이핑을 가로챈다 — 전파를 차단한다.
+      // React 핸들러(Enter 전송 등)는 같은 노드에 붙어 있어 영향 없음.
+      for (const type of ['keydown', 'keyup', 'keypress'] as const) {
+        container.addEventListener(type, (e) => e.stopPropagation())
+      }
       shadow.appendChild(container)
       root = createRoot(container)
     }
