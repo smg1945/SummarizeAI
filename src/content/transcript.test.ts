@@ -1,18 +1,5 @@
 import { describe, expect, it, vi, afterEach } from 'vitest'
-import { extractPlayerResponse, parseJson3, pickCaptionTrack, fetchTranscript } from './transcript'
-
-describe('extractPlayerResponse', () => {
-  it('스크립트 안의 JSON을 중괄호 균형으로 추출한다', () => {
-    const html = `<script>var ytInitialPlayerResponse = {"videoDetails":{"title":"안녕 {테스트} \\"인용\\"","lengthSeconds":"120"}};var other = 1;</script>`
-    const pr = extractPlayerResponse(html) as any
-    expect(pr.videoDetails.title).toBe('안녕 {테스트} "인용"')
-    expect(pr.videoDetails.lengthSeconds).toBe('120')
-  })
-
-  it('마커가 없으면 null', () => {
-    expect(extractPlayerResponse('<html></html>')).toBeNull()
-  })
-})
+import { parseJson3, pickCaptionTrack, fetchTranscript, toJson3Url } from './transcript'
 
 describe('pickCaptionTrack', () => {
   const ko = { baseUrl: 'u1', languageCode: 'ko' }
@@ -51,48 +38,88 @@ describe('parseJson3', () => {
   })
 })
 
+describe('toJson3Url', () => {
+  it('기존 fmt 파라미터를 json3로 교체한다', () => {
+    const url = toJson3Url('https://www.youtube.com/api/timedtext?v=abc&fmt=srv3&lang=ko')
+    expect(url).toContain('fmt=json3')
+    expect(url).not.toContain('fmt=srv3')
+  })
+  it('fmt가 없으면 json3를 추가한다', () => {
+    expect(toJson3Url('https://www.youtube.com/api/timedtext?v=abc')).toContain('fmt=json3')
+  })
+})
+
 describe('fetchTranscript', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
   })
 
-  it('자막 응답이 JSON이 아니면 null로 반환한다', async () => {
-    const watchHtml = `<html><script>var ytInitialPlayerResponse = {"videoDetails":{"title":"Test","lengthSeconds":"60"},"captions":{"playerCaptionsTracklistRenderer":{"captionTracks":[{"baseUrl":"https://example.com/api/timedtext","languageCode":"ko"}]}}};var other=1;</script></html>`
+  const playerJson = (captions: boolean) => ({
+    videoDetails: { title: 'Test', lengthSeconds: '60' },
+    ...(captions
+      ? {
+          captions: {
+            playerCaptionsTracklistRenderer: {
+              captionTracks: [
+                {
+                  baseUrl: 'https://www.youtube.com/api/timedtext?v=abc&fmt=srv3',
+                  languageCode: 'ko',
+                  kind: 'asr',
+                },
+              ],
+            },
+          },
+        }
+      : {}),
+  })
 
+  it('InnerTube player 응답의 자막을 json3로 받아 세그먼트와 메타를 돌려준다', async () => {
     const fetchMock = vi.fn((url: string) => {
-      if (url.includes('youtube.com/watch')) {
-        return Promise.resolve({
-          text: () => Promise.resolve(watchHtml),
-        })
-      } else {
-        return Promise.resolve({
-          ok: true,
-          json: () => Promise.reject(new Error('Invalid JSON')),
-        })
+      if (url.includes('youtubei/v1/player')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(playerJson(true)) })
       }
+      return Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve({ events: [{ tStartMs: 0, dDurationMs: 1000, segs: [{ utf8: '안녕' }] }] }),
+      })
     })
-
     vi.stubGlobal('fetch', fetchMock)
+
     const result = await fetchTranscript('test-video-id')
-    expect(result).toBeNull()
+    expect(result).toEqual({
+      segments: [{ start: 0, duration: 1, text: '안녕' }],
+      meta: { videoId: 'test-video-id', title: 'Test', durationSec: 60 },
+    })
+    // player 요청은 ANDROID 클라이언트 POST, 자막 요청은 fmt=json3로 교체된 URL
+    const playerCall = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
+    expect(playerCall[1].method).toBe('POST')
+    expect(String(playerCall[1].body)).toContain('"clientName":"ANDROID"')
+    const captionUrl = fetchMock.mock.calls[1][0] as unknown as string
+    expect(captionUrl).toContain('fmt=json3')
+    expect(captionUrl).not.toContain('fmt=srv3')
+  })
+
+  it('자막 응답이 JSON이 아니면 null로 반환한다', async () => {
+    const fetchMock = vi.fn((url: string) => {
+      if (url.includes('youtubei/v1/player')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(playerJson(true)) })
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.reject(new Error('Invalid JSON')) })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    expect(await fetchTranscript('test-video-id')).toBeNull()
   })
 
   it('playerResponse에 captionTracks가 없으면 null로 반환한다', async () => {
-    const watchHtml = `<html><script>var ytInitialPlayerResponse = {"videoDetails":{"title":"Test","lengthSeconds":"60"}};var other=1;</script></html>`
-
     const fetchMock = vi.fn((url: string) => {
-      if (url.includes('youtube.com/watch')) {
-        return Promise.resolve({
-          text: () => Promise.resolve(watchHtml),
-        })
-      } else {
-        throw new Error('Should not fetch caption URL')
+      if (url.includes('youtubei/v1/player')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(playerJson(false)) })
       }
+      throw new Error('Should not fetch caption URL')
     })
-
     vi.stubGlobal('fetch', fetchMock)
-    const result = await fetchTranscript('test-video-id')
-    expect(result).toBeNull()
+    expect(await fetchTranscript('test-video-id')).toBeNull()
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 })

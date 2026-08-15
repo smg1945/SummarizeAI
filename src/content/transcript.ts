@@ -6,43 +6,32 @@ export interface CaptionTrack {
   kind?: string // 'asr'이면 자동생성
 }
 
-const MARKER = 'ytInitialPlayerResponse = '
+interface PlayerResponse {
+  captions?: { playerCaptionsTracklistRenderer?: { captionTracks?: CaptionTrack[] } }
+  videoDetails?: { title?: string; lengthSeconds?: string }
+}
 
-export function extractPlayerResponse(html: string): unknown | null {
-  const idx = html.indexOf(MARKER)
-  if (idx === -1) return null
-  const start = idx + MARKER.length
-  let depth = 0
-  let inString = false
-  let escaped = false
-  for (let i = start; i < html.length; i++) {
-    const ch = html[i]
-    if (escaped) {
-      escaped = false
-      continue
-    }
-    if (ch === '\\') {
-      escaped = inString
-      continue
-    }
-    if (ch === '"') {
-      inString = !inString
-      continue
-    }
-    if (inString) continue
-    if (ch === '{') depth++
-    else if (ch === '}') {
-      depth--
-      if (depth === 0) {
-        try {
-          return JSON.parse(html.slice(start, i + 1))
-        } catch {
-          return null
-        }
-      }
-    }
-  }
-  return null
+// watch HTML의 자막 URL은 pot(proof-of-origin) 토큰 없이는 빈 응답을 주므로,
+// InnerTube player API(ANDROID 클라이언트)로 pot 불필요한 자막 URL을 얻는다
+async function fetchPlayerResponse(videoId: string): Promise<PlayerResponse | null> {
+  const res = await fetch('https://www.youtube.com/youtubei/v1/player?prettyPrint=false', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      context: {
+        client: { clientName: 'ANDROID', clientVersion: '20.10.38', androidSdkVersion: 30, hl: 'ko' },
+      },
+      videoId,
+    }),
+  })
+  if (!res.ok) return null
+  return (await res.json()) as PlayerResponse
+}
+
+export function toJson3Url(baseUrl: string): string {
+  const url = new URL(baseUrl, 'https://www.youtube.com')
+  url.searchParams.set('fmt', 'json3')
+  return url.toString()
 }
 
 export function pickCaptionTrack(tracks: CaptionTrack[]): CaptionTrack | null {
@@ -91,20 +80,12 @@ export async function fetchTranscript(
   videoId: string,
 ): Promise<{ segments: TranscriptSegment[]; meta: VideoMeta } | null> {
   try {
-    const res = await fetch(`https://www.youtube.com/watch?v=${videoId}`, {
-      credentials: 'include',
-    })
-    const html = await res.text()
-    const pr = extractPlayerResponse(html) as {
-      captions?: { playerCaptionsTracklistRenderer?: { captionTracks?: CaptionTrack[] } }
-      videoDetails?: { title?: string; lengthSeconds?: string }
-    } | null
+    const pr = await fetchPlayerResponse(videoId)
     const tracks = pr?.captions?.playerCaptionsTracklistRenderer?.captionTracks
     if (!tracks?.length) return null
     const track = pickCaptionTrack(tracks)
     if (!track) return null
-    const url = track.baseUrl.includes('fmt=') ? track.baseUrl : `${track.baseUrl}&fmt=json3`
-    const capRes = await fetch(url, { credentials: 'include' })
+    const capRes = await fetch(toJson3Url(track.baseUrl))
     if (!capRes.ok) return null
     let capJson: unknown
     try {

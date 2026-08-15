@@ -41,20 +41,28 @@ async function mountPanel() {
       console.warn('[SummarizeAI] 패널 삽입 지점(#secondary)을 찾지 못했습니다')
       return
     }
-    host = document.createElement('div')
-    host.id = HOST_ID
-    secondary.prepend(host)
-    const shadow = host.attachShadow({ mode: 'open' })
-    const style = document.createElement('style')
-    style.textContent = cssText
-    shadow.appendChild(style)
-    const container = document.createElement('div')
-    shadow.appendChild(container)
-    root = createRoot(container)
+    // await 사이에 다른 mountPanel 호출(초기 로드 + yt-navigate-finish 중복)이
+    // 이미 호스트를 만들었을 수 있다 — 재확인해 패널 중복 삽입을 막는다
+    host = document.getElementById(HOST_ID)
+    if (!host) {
+      host = document.createElement('div')
+      host.id = HOST_ID
+      secondary.prepend(host)
+      const shadow = host.attachShadow({ mode: 'open' })
+      const style = document.createElement('style')
+      style.textContent = cssText
+      shadow.appendChild(style)
+      const container = document.createElement('div')
+      shadow.appendChild(container)
+      root = createRoot(container)
+    }
   }
   // key=videoId로 영상 전환 시 패널 상태 리셋
   root?.render(<Panel key={videoId} videoId={videoId} />)
 }
+
+// 확장 리로드 시 이전 스크립트 컨텍스트가 남긴 죽은 패널 제거
+for (const stale of Array.from(document.querySelectorAll(`#${HOST_ID}`))) stale.remove()
 
 window.addEventListener('yt-navigate-finish', () => void mountPanel())
 void mountPanel()
