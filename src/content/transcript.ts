@@ -90,27 +90,37 @@ export function parseJson3(data: unknown): TranscriptSegment[] {
 export async function fetchTranscript(
   videoId: string,
 ): Promise<{ segments: TranscriptSegment[]; meta: VideoMeta } | null> {
-  const res = await fetch(`https://www.youtube.com/watch?v=${videoId}`, {
-    credentials: 'include',
-  })
-  const html = await res.text()
-  const pr = extractPlayerResponse(html) as {
-    captions?: { playerCaptionsTracklistRenderer?: { captionTracks?: CaptionTrack[] } }
-    videoDetails?: { title?: string; lengthSeconds?: string }
-  } | null
-  const tracks = pr?.captions?.playerCaptionsTracklistRenderer?.captionTracks
-  if (!tracks?.length) return null
-  const track = pickCaptionTrack(tracks)
-  if (!track) return null
-  const url = track.baseUrl.includes('fmt=') ? track.baseUrl : `${track.baseUrl}&fmt=json3`
-  const capRes = await fetch(url, { credentials: 'include' })
-  if (!capRes.ok) return null
-  const segments = parseJson3(await capRes.json())
-  if (!segments.length) return null
-  const meta: VideoMeta = {
-    videoId,
-    title: pr?.videoDetails?.title ?? '',
-    durationSec: Number(pr?.videoDetails?.lengthSeconds ?? 0),
+  try {
+    const res = await fetch(`https://www.youtube.com/watch?v=${videoId}`, {
+      credentials: 'include',
+    })
+    const html = await res.text()
+    const pr = extractPlayerResponse(html) as {
+      captions?: { playerCaptionsTracklistRenderer?: { captionTracks?: CaptionTrack[] } }
+      videoDetails?: { title?: string; lengthSeconds?: string }
+    } | null
+    const tracks = pr?.captions?.playerCaptionsTracklistRenderer?.captionTracks
+    if (!tracks?.length) return null
+    const track = pickCaptionTrack(tracks)
+    if (!track) return null
+    const url = track.baseUrl.includes('fmt=') ? track.baseUrl : `${track.baseUrl}&fmt=json3`
+    const capRes = await fetch(url, { credentials: 'include' })
+    if (!capRes.ok) return null
+    let capJson: unknown
+    try {
+      capJson = await capRes.json()
+    } catch {
+      return null
+    }
+    const segments = parseJson3(capJson)
+    if (!segments.length) return null
+    const meta: VideoMeta = {
+      videoId,
+      title: pr?.videoDetails?.title ?? '',
+      durationSec: Number(pr?.videoDetails?.lengthSeconds ?? 0),
+    }
+    return { segments, meta }
+  } catch {
+    return null
   }
-  return { segments, meta }
 }
