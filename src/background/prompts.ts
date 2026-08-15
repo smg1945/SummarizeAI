@@ -1,3 +1,5 @@
+import { formatTime } from '../shared/format'
+import type { TranscriptChunk } from './pipeline'
 import type { Settings, TranscriptSegment, VideoMeta } from '../shared/types'
 
 export function languageInstruction(language: Settings['language']): string {
@@ -35,4 +37,26 @@ export function buildMapUser(chunkText: string): string {
 export function buildReduceUser(meta: VideoMeta, partials: string[]): string {
   const joined = partials.map((p, i) => `[부분 ${i + 1}]\n${p}`).join('\n\n')
   return `영상 제목: ${meta.title}\n\n다음은 영상을 구간별로 나눠 요약한 부분 요약들입니다. 이를 통합해 전체 영상의 최종 요약을 작성하세요:\n\n${joined}`
+}
+
+const CHAPTER_GROUP_MAX_CHARS = 3000
+
+export function buildChaptersSystem(language: Settings['language']): string {
+  return [
+    '당신은 유튜브 영상의 챕터(구간별 목차)를 만드는 도우미입니다.',
+    '반드시 JSON 배열만 출력하세요. 다른 텍스트를 덧붙이지 마세요.',
+    '형식: [{"startTime": 초단위숫자, "title": "구간 제목", "summary": "한 줄 요약"}]',
+    'startTime은 각 구간에 표기된 "시작" 초 값을 그대로 사용하세요.',
+    languageInstruction(language),
+  ].join('\n')
+}
+
+export function buildChaptersUser(meta: VideoMeta, groups: TranscriptChunk[]): string {
+  const body = groups
+    .map(
+      (g, i) =>
+        `구간 ${i + 1} (시작: ${Math.round(g.startTime)}초, ${formatTime(g.startTime)}):\n${g.text.slice(0, CHAPTER_GROUP_MAX_CHARS)}`,
+    )
+    .join('\n\n')
+  return `영상 제목: ${meta.title}\n\n다음 구간별 자막을 보고 각 구간의 챕터를 만들어 주세요:\n\n${body}`
 }
