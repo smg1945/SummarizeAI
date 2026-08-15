@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { fetchTranscript } from './transcript'
+import { SummaryTab } from './components/SummaryTab'
 import type { RuntimeRequest, RuntimeResponse } from '../shared/messages'
 import type { TranscriptSegment, VideoMeta } from '../shared/types'
 
@@ -76,7 +77,7 @@ function TabContent({ tab, transcript, meta }: { tab: TabKey } & TabProps) {
   // Task 10~12에서 SummaryTab / ChaptersTab / ChatTab으로 교체된다
   switch (tab) {
     case 'summary':
-      return <span className="muted">요약 탭 (구현 예정)</span>
+      return <SummaryTab transcript={transcript} meta={meta} />
     case 'chapters':
       return <span className="muted">챕터 탭 (구현 예정)</span>
     case 'chat':
