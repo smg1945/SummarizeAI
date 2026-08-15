@@ -13,7 +13,7 @@ export type PortRequest =
       question: string
     }
 
-export type PortErrorCode = 'LLM_UNREACHABLE' | 'PARSE_FAILED' | 'UNKNOWN'
+export type PortErrorCode = 'LLM_UNREACHABLE' | 'AUTH_FAILED' | 'PARSE_FAILED' | 'UNKNOWN'
 
 export type PortResponse =
   | { kind: 'delta'; text: string }

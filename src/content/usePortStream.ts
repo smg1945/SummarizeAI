@@ -51,10 +51,12 @@ export function usePortStream() {
             finished = true
             setError(
               msg.code === 'LLM_UNREACHABLE'
-                ? 'LM Studio에 연결할 수 없습니다. LM Studio를 실행하고 서버(Developer > Start Server)를 켜 주세요.'
-                : msg.code === 'PARSE_FAILED'
-                  ? '챕터 생성에 실패했습니다. 다시 시도해 주세요.'
-                  : `오류가 발생했습니다: ${msg.message}`,
+                ? 'LLM 서버에 연결할 수 없습니다. 로컬 모드라면 LM Studio 서버(Developer > Start Server)가 켜져 있는지 확인해 주세요.'
+                : msg.code === 'AUTH_FAILED'
+                  ? 'API 키가 올바르지 않습니다. 확장 옵션에서 API 키를 확인해 주세요.'
+                  : msg.code === 'PARSE_FAILED'
+                    ? '챕터 생성에 실패했습니다. 다시 시도해 주세요.'
+                    : `오류가 발생했습니다: ${msg.message}`,
             )
             setStatus('error')
             port.disconnect()

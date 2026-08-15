@@ -13,7 +13,7 @@ vi.mock('./chapters', async (importOriginal) => ({
 vi.mock('./chat', () => ({ answerQuestion: vi.fn() }))
 vi.mock('./cache', () => ({ getCache: vi.fn(), setCache: vi.fn() }))
 
-import { LlmUnreachableError } from './llm'
+import { LlmAuthError, LlmUnreachableError } from './llm'
 import { summarize } from './pipeline'
 import { generateChapters } from './chapters'
 import { answerQuestion } from './chat'
@@ -66,6 +66,17 @@ describe('handleRequest: summarize', () => {
     await handleRequest(summarizeReq, DEFAULT_SETTINGS, post, new AbortController().signal)
     expect(messages).toEqual([
       expect.objectContaining({ kind: 'error', code: 'LLM_UNREACHABLE' }),
+    ])
+  })
+
+  it('LlmAuthError는 AUTH_FAILED 에러 응답', async () => {
+    vi.mocked(summarize).mockImplementation(async function* () {
+      throw new LlmAuthError()
+    })
+    const { messages, post } = makePost()
+    await handleRequest(summarizeReq, DEFAULT_SETTINGS, post, new AbortController().signal)
+    expect(messages).toEqual([
+      expect.objectContaining({ kind: 'error', code: 'AUTH_FAILED' }),
     ])
   })
 

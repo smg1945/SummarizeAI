@@ -1,13 +1,14 @@
 import { generateChapters, ChapterParseError } from './chapters'
 import { answerQuestion } from './chat'
 import { getCache, setCache } from './cache'
-import { LlmUnreachableError } from './llm'
+import { LlmAuthError, LlmUnreachableError } from './llm'
 import { summarize } from './pipeline'
 import type { PortErrorCode, PortRequest, PortResponse } from '../shared/messages'
 import type { Chapter, Settings } from '../shared/types'
 
 function errorCode(e: unknown): PortErrorCode {
   if (e instanceof LlmUnreachableError) return 'LLM_UNREACHABLE'
+  if (e instanceof LlmAuthError) return 'AUTH_FAILED'
   if (e instanceof ChapterParseError) return 'PARSE_FAILED'
   return 'UNKNOWN'
 }
