@@ -25,10 +25,13 @@ function waitFor(selector: string, timeoutMs: number): Promise<Element | null> {
   })
 }
 
+let lastRenderedVideoId: string | null = null
+
 async function mountPanel() {
   const videoId = getVideoId()
   if (!videoId) {
     root?.render(null)
+    lastRenderedVideoId = null
     return
   }
   let host = document.getElementById(HOST_ID)
@@ -67,6 +70,7 @@ async function mountPanel() {
   }
   // key=videoId로 영상 전환 시 패널 상태 리셋
   root?.render(<Panel key={videoId} videoId={videoId} />)
+  lastRenderedVideoId = videoId
 }
 
 // 확장 리로드 시 이전 스크립트 컨텍스트가 남긴 죽은 패널 제거
@@ -74,3 +78,12 @@ for (const stale of Array.from(document.querySelectorAll(`#${HOST_ID}`))) stale.
 
 window.addEventListener('yt-navigate-finish', () => void mountPanel())
 void mountPanel()
+
+// SPA 전환 직후 유튜브가 #secondary를 재구성하며 호스트를 제거하거나,
+// 전환 이벤트가 아예 오지 않는 경우가 있다 — 주기적으로 패널 생존을 확인해 되살린다
+setInterval(() => {
+  const videoId = getVideoId()
+  if (!videoId) return
+  const alive = document.getElementById(HOST_ID) !== null
+  if (!alive || videoId !== lastRenderedVideoId) void mountPanel()
+}, 1000)
