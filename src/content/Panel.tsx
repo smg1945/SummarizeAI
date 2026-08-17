@@ -4,7 +4,7 @@ import { SummaryTab } from './components/SummaryTab'
 import { ChaptersTab } from './components/ChaptersTab'
 import { ChatTab } from './components/ChatTab'
 import { SettingsView } from './components/SettingsView'
-import type { RuntimeRequest, RuntimeResponse } from '../shared/messages'
+import type { GetCachedResponse, RuntimeRequest, RuntimeResponse } from '../shared/messages'
 import type { TranscriptSegment, VideoMeta } from '../shared/types'
 
 export type TabKey = 'summary' | 'chapters' | 'chat'
@@ -14,12 +14,15 @@ export interface TabProps {
   meta: VideoMeta
 }
 
+const EMPTY_CACHE: GetCachedResponse = { summary: null, chapters: null, chat: null }
+
 export function Panel({ videoId }: { videoId: string }) {
   const [tab, setTab] = useState<TabKey>('summary')
   const [connected, setConnected] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [data, setData] = useState<{ segments: TranscriptSegment[]; meta: VideoMeta } | null>(null)
   const [loading, setLoading] = useState(true)
+  const [cached, setCached] = useState<GetCachedResponse | null>(null)
 
   const checkConnection = useCallback(() => {
     const req: RuntimeRequest = { kind: 'checkConnection' }
@@ -29,6 +32,19 @@ export function Panel({ videoId }: { videoId: string }) {
   useEffect(() => {
     checkConnection()
   }, [videoId, checkConnection])
+
+  // 이전에 생성한 요약/챕터/채팅 내역을 복원한다
+  useEffect(() => {
+    let cancelled = false
+    setCached(null)
+    const req: RuntimeRequest = { kind: 'getCached', videoId }
+    chrome.runtime.sendMessage(req, (res: GetCachedResponse) => {
+      if (!cancelled) setCached(res ?? EMPTY_CACHE)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [videoId])
 
   useEffect(() => {
     let cancelled = false
@@ -68,40 +84,52 @@ export function Panel({ videoId }: { videoId: string }) {
           ⚙
         </button>
       </div>
-      {showSettings ? (
-        <div className="body">
-          <SettingsView onSaved={checkConnection} />
+      {/* 설정 화면은 display 토글로 전환 — 탭을 언마운트하면 진행 중인 내역이 사라진다 */}
+      <div className="body" style={{ display: showSettings ? undefined : 'none' }}>
+        <SettingsView onSaved={checkConnection} />
+      </div>
+      <div style={{ display: showSettings ? 'none' : undefined }}>
+        <div className="tabs">
+          {tabs.map((t) => (
+            <button key={t.key} className={`tab${tab === t.key ? ' active' : ''}`} onClick={() => setTab(t.key)}>
+              {t.label}
+            </button>
+          ))}
         </div>
-      ) : (
-        <>
-          <div className="tabs">
-            {tabs.map((t) => (
-              <button key={t.key} className={`tab${tab === t.key ? ' active' : ''}`} onClick={() => setTab(t.key)}>
-                {t.label}
-              </button>
-            ))}
-          </div>
-          <div className="body">
-            {loading ? (
-              <span className="muted">자막을 불러오는 중...</span>
-            ) : !data ? (
-              <span className="muted">이 영상은 자막이 없어 요약할 수 없습니다.</span>
-            ) : (
-              <>
-                <div style={{ display: tab === 'summary' ? undefined : 'none' }}>
-                  <SummaryTab transcript={data.segments} meta={data.meta} />
-                </div>
-                <div style={{ display: tab === 'chapters' ? undefined : 'none' }}>
-                  <ChaptersTab transcript={data.segments} meta={data.meta} />
-                </div>
-                <div style={{ display: tab === 'chat' ? undefined : 'none' }}>
-                  <ChatTab transcript={data.segments} meta={data.meta} active={tab === 'chat'} />
-                </div>
-              </>
-            )}
-          </div>
-        </>
-      )}
+        <div className="body">
+          {loading || cached === null ? (
+            <span className="muted">자막을 불러오는 중...</span>
+          ) : !data ? (
+            <span className="muted">이 영상은 자막이 없어 요약할 수 없습니다.</span>
+          ) : (
+            <>
+              <div style={{ display: tab === 'summary' ? undefined : 'none' }}>
+                <SummaryTab
+                  transcript={data.segments}
+                  meta={data.meta}
+                  initialText={cached.summary ?? undefined}
+                />
+              </div>
+              <div style={{ display: tab === 'chapters' ? undefined : 'none' }}>
+                <ChaptersTab
+                  transcript={data.segments}
+                  meta={data.meta}
+                  initialChapters={cached.chapters ?? undefined}
+                />
+              </div>
+              <div style={{ display: tab === 'chat' ? undefined : 'none' }}>
+                <ChatTab
+                  transcript={data.segments}
+                  meta={data.meta}
+                  active={tab === 'chat'}
+                  videoId={videoId}
+                  initialHistory={cached.chat ?? undefined}
+                />
+              </div>
+            </>
+          )}
+        </div>
+      </div>
     </div>
   )
 }

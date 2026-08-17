@@ -5,8 +5,14 @@ import type { TabProps } from '../Panel'
 import type { ChatMessage } from '../../shared/types'
 import type { RuntimeRequest, SuggestQuestionsResponse } from '../../shared/messages'
 
-export function ChatTab({ transcript, meta, active }: TabProps & { active: boolean }) {
-  const [history, setHistory] = useState<ChatMessage[]>([])
+export function ChatTab({
+  transcript,
+  meta,
+  active,
+  videoId,
+  initialHistory,
+}: TabProps & { active: boolean; videoId: string; initialHistory?: ChatMessage[] }) {
+  const [history, setHistory] = useState<ChatMessage[]>(initialHistory ?? [])
   const [input, setInput] = useState('')
   const [suggestions, setSuggestions] = useState<string[]>([])
   const [loadingSuggestions, setLoadingSuggestions] = useState(false)
@@ -28,9 +34,8 @@ export function ChatTab({ transcript, meta, active }: TabProps & { active: boole
   useEffect(() => {
     if (active && !suggestionsFetched.current) {
       suggestionsFetched.current = true
-      fetchSuggestions([])
+      fetchSuggestions(history) // 복원된 대화가 있으면 그 맥락을 반영
     }
-    // eslint 없음 — fetchSuggestions는 최신 props를 캡처하는 렌더당 함수
   }, [active])
 
   const ask = (question: string) => {
@@ -42,6 +47,9 @@ export function ChatTab({ transcript, meta, active }: TabProps & { active: boole
     start({ kind: 'chat', transcript, meta, history, question }, (finalText) => {
       const doneHistory: ChatMessage[] = [...nextHistory, { role: 'assistant', content: finalText }]
       setHistory(doneHistory)
+      // 대화 내역을 저장해 새로고침 후에도 복원되게 한다
+      const saveReq: RuntimeRequest = { kind: 'saveChat', videoId, history: doneHistory }
+      chrome.runtime.sendMessage(saveReq, () => void chrome.runtime.lastError)
       fetchSuggestions(doneHistory)
     })
   }

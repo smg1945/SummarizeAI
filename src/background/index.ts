@@ -1,15 +1,28 @@
 import { handleRequest } from './router'
 import { checkConnection, listModels } from './llm'
 import { generateSuggestions } from './suggest'
+import { getCache, setCache } from './cache'
 import { loadSettings } from '../shared/settings'
 import {
   PORT_NAME,
+  type AckResponse,
+  type GetCachedResponse,
   type ListModelsResponse,
   type PortRequest,
   type RuntimeRequest,
   type RuntimeResponse,
   type SuggestQuestionsResponse,
 } from '../shared/messages'
+import type { Chapter, ChatMessage } from '../shared/types'
+
+function parseJsonOrNull<T>(value: string | undefined): T | null {
+  if (!value) return null
+  try {
+    return JSON.parse(value) as T
+  } catch {
+    return null
+  }
+}
 
 chrome.runtime.onConnect.addListener((port) => {
   if (port.name !== PORT_NAME) return
@@ -44,7 +57,9 @@ chrome.runtime.onMessage.addListener(
   (
     req: RuntimeRequest,
     _sender,
-    sendResponse: (res: RuntimeResponse | ListModelsResponse | SuggestQuestionsResponse) => void,
+    sendResponse: (
+      res: RuntimeResponse | ListModelsResponse | SuggestQuestionsResponse | GetCachedResponse | AckResponse,
+    ) => void,
   ) => {
     if (req.kind === 'checkConnection') {
       void (async () => {
@@ -56,6 +71,29 @@ chrome.runtime.onMessage.addListener(
     if (req.kind === 'listModels') {
       void (async () => {
         sendResponse({ models: await listModels(req.settings) })
+      })()
+      return true
+    }
+    if (req.kind === 'getCached') {
+      void (async () => {
+        const settings = await loadSettings()
+        const [summary, chaptersJson, chatJson] = await Promise.all([
+          getCache(`summary:${req.videoId}:${settings.language}`),
+          getCache(`chapters:${req.videoId}:${settings.language}`),
+          getCache(`chat:${req.videoId}`),
+        ])
+        sendResponse({
+          summary: summary ?? null,
+          chapters: parseJsonOrNull<Chapter[]>(chaptersJson),
+          chat: parseJsonOrNull<ChatMessage[]>(chatJson),
+        } satisfies GetCachedResponse)
+      })()
+      return true
+    }
+    if (req.kind === 'saveChat') {
+      void (async () => {
+        await setCache(`chat:${req.videoId}`, JSON.stringify(req.history))
+        sendResponse({ ok: true } satisfies AckResponse)
       })()
       return true
     }
