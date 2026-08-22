@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { fetchTranscript } from './transcript'
+import { fetchTranscript, transcriptErrorMessage, type TranscriptFailureReason } from './transcript'
 import { SummaryTab } from './components/SummaryTab'
 import { ChaptersTab } from './components/ChaptersTab'
 import { ChatTab } from './components/ChatTab'
@@ -21,6 +21,7 @@ export function Panel({ videoId }: { videoId: string }) {
   const [connected, setConnected] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [data, setData] = useState<{ segments: TranscriptSegment[]; meta: VideoMeta } | null>(null)
+  const [error, setError] = useState<TranscriptFailureReason | null>(null)
   const [loading, setLoading] = useState(true)
   const [cached, setCached] = useState<GetCachedResponse | null>(null)
 
@@ -50,12 +51,15 @@ export function Panel({ videoId }: { videoId: string }) {
     let cancelled = false
     setLoading(true)
     setData(null)
+    setError(null)
     fetchTranscript(videoId)
       .then((result) => {
-        if (!cancelled) setData(result)
+        if (cancelled) return
+        if (result.ok) setData({ segments: result.segments, meta: result.meta })
+        else setError(result.reason)
       })
       .catch(() => {
-        if (!cancelled) setData(null)
+        if (!cancelled) setError('network')
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
@@ -100,7 +104,7 @@ export function Panel({ videoId }: { videoId: string }) {
           {loading || cached === null ? (
             <span className="muted">자막을 불러오는 중...</span>
           ) : !data ? (
-            <span className="muted">이 영상은 자막이 없어 요약할 수 없습니다.</span>
+            <span className="muted">{transcriptErrorMessage(error ?? 'no_captions')}</span>
           ) : (
             <>
               <div style={{ display: tab === 'summary' ? undefined : 'none' }}>

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, afterEach } from 'vitest'
-import { parseJson3, pickCaptionTrack, fetchTranscript, toJson3Url } from './transcript'
+import { parseJson3, pickCaptionTrack, fetchTranscript, toJson3Url, transcriptErrorMessage } from './transcript'
 
 describe('pickCaptionTrack', () => {
   const ko = { baseUrl: 'u1', languageCode: 'ko' }
@@ -88,6 +88,7 @@ describe('fetchTranscript', () => {
 
     const result = await fetchTranscript('test-video-id')
     expect(result).toEqual({
+      ok: true,
       segments: [{ start: 0, duration: 1, text: '안녕' }],
       meta: { videoId: 'test-video-id', title: 'Test', durationSec: 60 },
     })
@@ -100,7 +101,7 @@ describe('fetchTranscript', () => {
     expect(captionUrl).not.toContain('fmt=srv3')
   })
 
-  it('자막 응답이 JSON이 아니면 null로 반환한다', async () => {
+  it('자막 응답이 JSON이 아니면 caption_fetch_failed', async () => {
     const fetchMock = vi.fn((url: string) => {
       if (url.includes('youtubei/v1/player')) {
         return Promise.resolve({ ok: true, json: () => Promise.resolve(playerJson(true)) })
@@ -108,10 +109,36 @@ describe('fetchTranscript', () => {
       return Promise.resolve({ ok: true, json: () => Promise.reject(new Error('Invalid JSON')) })
     })
     vi.stubGlobal('fetch', fetchMock)
-    expect(await fetchTranscript('test-video-id')).toBeNull()
+    expect(await fetchTranscript('test-video-id')).toEqual({ ok: false, reason: 'caption_fetch_failed' })
   })
 
-  it('playerResponse에 captionTracks가 없으면 null로 반환한다', async () => {
+  it('자막 본문이 비어 있으면 caption_fetch_failed', async () => {
+    const fetchMock = vi.fn((url: string) => {
+      if (url.includes('youtubei/v1/player')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(playerJson(true)) })
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({ events: [] }) })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    expect(await fetchTranscript('test-video-id')).toEqual({ ok: false, reason: 'caption_fetch_failed' })
+  })
+
+  it('네트워크 오류면 network', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => Promise.reject(new TypeError('Failed to fetch'))))
+    expect(await fetchTranscript('test-video-id')).toEqual({ ok: false, reason: 'network' })
+  })
+
+  it('playabilityStatus가 OK가 아니면(ERROR/UNPLAYABLE) unavailable', async () => {
+    vi.stubGlobal('fetch', vi.fn(() =>
+      Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ playabilityStatus: { status: 'UNPLAYABLE' } }),
+      }),
+    ))
+    expect(await fetchTranscript('test-video-id')).toEqual({ ok: false, reason: 'unavailable' })
+  })
+
+  it('playerResponse에 captionTracks가 없으면 no_captions', async () => {
     const fetchMock = vi.fn((url: string) => {
       if (url.includes('youtubei/v1/player')) {
         return Promise.resolve({ ok: true, json: () => Promise.resolve(playerJson(false)) })
@@ -119,7 +146,79 @@ describe('fetchTranscript', () => {
       throw new Error('Should not fetch caption URL')
     })
     vi.stubGlobal('fetch', fetchMock)
-    expect(await fetchTranscript('test-video-id')).toBeNull()
+    expect(await fetchTranscript('test-video-id')).toEqual({ ok: false, reason: 'no_captions' })
     expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('연령 제한(LOGIN_REQUIRED)이면 로그인 쿠키로 WEB 클라이언트에 재시도한다', async () => {
+    vi.stubGlobal('document', { cookie: 'SAPISID=abc123; OTHER=x' })
+    const fetchMock = vi.fn((url: string, init?: RequestInit) => {
+      if (url.includes('youtubei/v1/player')) {
+        const body = String(init?.body)
+        if (body.includes('"clientName":"ANDROID"')) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({ playabilityStatus: { status: 'LOGIN_REQUIRED' } }),
+          })
+        }
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(playerJson(true)) })
+      }
+      return Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve({ events: [{ tStartMs: 0, dDurationMs: 1000, segs: [{ utf8: 'こんにちは' }] }] }),
+      })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await fetchTranscript('test-video-id')
+    expect(result.ok && result.segments).toEqual([{ start: 0, duration: 1, text: 'こんにちは' }])
+
+    const webCall = fetchMock.mock.calls[1] as unknown as [string, RequestInit]
+    expect(String(webCall[1].body)).toContain('"clientName":"WEB"')
+    expect(webCall[1].credentials).toBe('include')
+    expect((webCall[1].headers as Record<string, string>).Authorization).toMatch(/^SAPISIDHASH \d+_[0-9a-f]{40}$/)
+    // 자막 URL도 로그인 쿠키를 포함해 요청
+    const capCall = fetchMock.mock.calls[2] as unknown as [string, RequestInit]
+    expect(capCall[1].credentials).toBe('include')
+  })
+
+  it('LOGIN_REQUIRED인데 로그인 쿠키가 없으면 WEB 재시도 없이 login_required', async () => {
+    vi.stubGlobal('document', { cookie: '' })
+    const fetchMock = vi.fn(() =>
+      Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ playabilityStatus: { status: 'LOGIN_REQUIRED' } }),
+      }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    expect(await fetchTranscript('test-video-id')).toEqual({ ok: false, reason: 'login_required' })
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('로그인 재시도 후에도 트랙이 없으면 no_captions', async () => {
+    vi.stubGlobal('document', { cookie: 'SAPISID=abc123' })
+    const fetchMock = vi.fn((_url: string, init?: RequestInit) => {
+      const android = String(init?.body).includes('"clientName":"ANDROID"')
+      return Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve(
+            android ? { playabilityStatus: { status: 'LOGIN_REQUIRED' } } : playerJson(false),
+          ),
+      })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    expect(await fetchTranscript('test-video-id')).toEqual({ ok: false, reason: 'no_captions' })
+  })
+})
+
+describe('transcriptErrorMessage', () => {
+  it('사유별로 다른 안내 문구를 돌려준다', () => {
+    const reasons = ['no_captions', 'login_required', 'unavailable', 'caption_fetch_failed', 'network'] as const
+    const msgs = reasons.map(transcriptErrorMessage)
+    expect(new Set(msgs).size).toBe(reasons.length)
+    expect(transcriptErrorMessage('login_required')).toContain('로그인')
+    expect(transcriptErrorMessage('no_captions')).toContain('자막이 없');
   })
 })
